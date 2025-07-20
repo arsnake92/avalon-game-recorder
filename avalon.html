@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阿瓦隆遊戲紀錄器</title>
+    <style>
+        /* CSS 樣式 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            background-color: #333;
+            color: #f0f0f0;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background-color: #444;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #ffc107;
+            text-align: center;
+            border-bottom: 2px solid #555;
+            padding-bottom: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #ccc;
+        }
+        input[type="number"], input[type="text"], button, select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #666;
+            background-color: #555;
+            color: #f0f0f0;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #ffc107;
+            color: #333;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.2s;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #ffca2c;
+        }
+        .player-inputs-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+        }
+        .mission-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .mission {
+            background-color: #555;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            border: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        .mission.success { background-color: #28a745; }
+        .mission.fail { background-color: #dc3545; }
+        .mission h3 { margin-top: 0; }
+        .mission.current-mission {
+            border: 3px solid #ffc107;
+        }
+        .log-container {
+            background-color: #2b2b2b;
+            height: 200px;
+            overflow-y: auto;
+            border-radius: 4px;
+            padding: 10px;
+            border: 1px solid #555;
+        }
+        .log-entry {
+            padding-bottom: 5px;
+            margin-bottom: 5px;
+            border-bottom: 1px dotted #555;
+        }
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .control-box {
+            background-color: #5a5a5a;
+            padding: 15px;
+            border-radius: 6px;
+        }
+        .control-box h4 { margin-top: 0; text-align: center; }
+        #team-selection label, #vote-selection label, #lady-result-selection label {
+            display: block;
+            background: #4f4f4f;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #team-selection label:hover, #vote-selection label:hover, #lady-result-selection label:hover { background: #6a6a6a; }
+        #team-selection input, #vote-selection input, #lady-result-selection input { margin-right: 10px; }
+        #mission-team-members {
+            padding: 10px;
+            background-color: #444;
+            border-radius: 4px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- HTML 結構 -->
+    <div class="container" id="setup-container">
+        <h1>阿瓦隆遊戲紀錄器</h1>
+        <div class="input-group">
+            <label for="player-count">請輸入玩家人數 (5-10):</label>
+            <input type="number" id="player-count" min="5" max="10" value="5">
+        </div>
+        <button id="setup-btn">設定玩家名稱</button>
+        <div id="player-names-container" class="hidden">
+            <h2>輸入玩家名稱</h2>
+            <div id="player-inputs-container" class="player-inputs-container"></div>
+            <button id="start-game-btn">開始遊戲</button>
+        </div>
+    </div>
+
+    <div class="container hidden" id="game-container">
+        <h2 id="game-status"></h2>
+        <div class="mission-grid" id="mission-track"></div>
+        
+        <div class="container hidden" id="lady-of-the-lake-box" style="margin-top: 20px; background-color: #3a3a3a;">
+            <h4><span style="color: #4fc3f7;">湖中女神</span></h4>
+            <p>持有者 <strong id="lady-holder" style="color: #4fc3f7;"></strong> 請選擇一位玩家查驗：</p>
+            <div class="input-group">
+                <label for="lady-target-select">查驗對象:</label>
+                <select id="lady-target-select"></select>
+            </div>
+            <div class="input-group" id="lady-result-selection">
+                <label>查驗結果:</label>
+                <label><input type="radio" name="lady-result" value="Good" checked> 正義</label>
+                <label><input type="radio" name="lady-result" value="Evil"> 邪惡</label>
+            </div>
+            <button id="submit-lady-of-the-lake-btn">確認查驗</button>
+        </div>
+
+        <div class="controls-grid">
+            <div class="control-box" id="team-box">
+                <h4><span id="turn-leader"></span> 領袖派票</h4>
+                <div id="team-selection"></div>
+                <button id="submit-team-btn">確認隊伍</button>
+            </div>
+            <div class="control-box hidden" id="vote-box">
+                <h4>投票階段</h4>
+                <div id="vote-selection"></div>
+                <button id="submit-vote-btn">確認投票結果</button>
+            </div>
+        </div>
+        <div class="container hidden" id="mission-box" style="margin-top: 20px; background-color: #3a3a3a;">
+            <h4>任務執行</h4>
+            <p>出任務的玩家為：</p>
+            <div id="mission-team-members"></div>
+            <div class="input-group">
+                <label for="fail-cards">請輸入本次任務「失敗」卡的數量：</label>
+                <input type="number" id="fail-cards" min="0" value="0">
+            </div>
+            <button id="submit-mission-btn">確認任務結果</button>
+        </div>
+    </div>
+
+    <div class="container hidden" id="log-container-wrapper">
+        <h2>遊戲紀錄</h2>
+        <div class="log-container" id="log-container"></div>
+    </div>
+
+    <script>
+        // JavaScript 功能邏輯
+        document.addEventListener('DOMContentLoaded', () => {
+            // 變數宣告
+            const setupContainer = document.getElementById('setup-container');
+            const gameContainer = document.getElementById('game-container');
+            const logContainerWrapper = document.getElementById('log-container-wrapper');
+            const playerCountInput = document.getElementById('player-count');
+            const setupBtn = document.getElementById('setup-btn');
+            const playerNamesContainer = document.getElementById('player-names-container');
+            const playerInputsContainer = document.getElementById('player-inputs-container');
+            const startGameBtn = document.getElementById('start-game-btn');
+            const gameStatus = document.getElementById('game-status');
+            const missionTrack = document.getElementById('mission-track');
+            const turnLeader = document.getElementById('turn-leader');
+            const teamBox = document.getElementById('team-box');
+            const teamSelection = document.getElementById('team-selection');
+            const submitTeamBtn = document.getElementById('submit-team-btn');
+            const voteBox = document.getElementById('vote-box');
+            const voteSelection = document.getElementById('vote-selection');
+            const submitVoteBtn = document.getElementById('submit-vote-btn');
+            const missionBox = document.getElementById('mission-box');
+            const missionTeamMembers = document.getElementById('mission-team-members');
+            const failCardsInput = document.getElementById('fail-cards');
+            const submitMissionBtn = document.getElementById('submit-mission-btn');
+            const logContainer = document.getElementById('log-container');
+            // 湖中女神變數
+            const ladyOfTheLakeBox = document.getElementById('lady-of-the-lake-box');
+            const ladyHolderSpan = document.getElementById('lady-holder');
+            const ladyTargetSelect = document.getElementById('lady-target-select');
+            const submitLadyOfTheLakeBtn = document.getElementById('submit-lady-of-the-lake-btn');
+
+
+            let state = {};
+
+            const missionSize = {
+                5: [2, 3, 2, 3, 3], 6: [2, 3, 4, 3, 4], 7: [2, 3, 3, 4, 4],
+                8: [3, 4, 4, 5, 5], 9: [3, 4, 4, 5, 5], 10: [3, 4, 4, 5, 5],
+            };
+            
+            function logAction(text, withRoundInfo = true) {
+                const entry = document.createElement('div');
+                entry.classList.add('log-entry');
+                const timestamp = new Date().toLocaleTimeString('it-IT');
+                let prefix = '';
+                if (withRoundInfo && state.round) {
+                    prefix = `<span style="color:#ffc107; font-weight:bold;">[${state.round}-${state.turn}]</span> `;
+                }
+                entry.innerHTML = `<span style="color:#888;">[${timestamp}]</span> ${prefix}${text}`;
+                logContainer.appendChild(entry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+
+            // 設定與開始遊戲的邏輯
+            setupBtn.addEventListener('click', () => {
+                const count = parseInt(playerCountInput.value);
+                if (count < 5 || count > 10) { alert('玩家人數必須介於 5 到 10 人之間！'); return; }
+                playerInputsContainer.innerHTML = '';
+                for (let i = 1; i <= count; i++) {
+                    const inputDiv = document.createElement('div');
+                    inputDiv.innerHTML = `<label for="player-${i}">玩家 ${i}:</label><input type="text" id="player-${i}" value="玩家${i}">`;
+                    playerInputsContainer.appendChild(inputDiv);
+                }
+                playerNamesContainer.classList.remove('hidden');
+            });
+
+            startGameBtn.addEventListener('click', () => {
+                const players = [];
+                const count = parseInt(playerCountInput.value);
+                for (let i = 1; i <= count; i++) {
+                    const playerName = document.getElementById(`player-${i}`).value;
+                    if (!playerName) { alert(`請輸入玩家 ${i} 的名稱！`); return; }
+                    players.push({ id: i, name: playerName });
+                }
+                state = {
+                    players: players, round: 1, turn: 1, leader: 1,
+                    missions: [null, null, null, null, null],
+                    failedVotes: 0, currentTeam: [],
+                    // 湖中女神狀態初始化
+                    ladyOfTheLakeHolder: players.length, // 最後一位玩家持有
+                    ladyOfTheLakeHistory: [], // 紀錄查驗歷史
+                };
+                setupContainer.classList.add('hidden');
+                gameContainer.classList.remove('hidden');
+                logContainerWrapper.classList.remove('hidden');
+                logAction(`遊戲開始！湖中女神在 ${state.players[state.ladyOfTheLakeHolder - 1].name} 手上。`, false);
+                updateUI();
+            });
+
+            // 更新遊戲介面的主函數
+            function updateUI() {
+                missionTrack.innerHTML = '';
+                state.missions.forEach((result, index) => {
+                    const missionDiv = document.createElement('div');
+                    missionDiv.classList.add('mission');
+                    if ((index + 1) === state.round) { missionDiv.classList.add('current-mission'); }
+                    const size = missionSize[state.players.length][index];
+                    const failsNeeded = (state.players.length >= 7 && index === 3) ? ' (需2票失敗)' : '';
+                    missionDiv.innerHTML = `<h3>任務 ${index + 1}</h3><p>需要 ${size} 人${failsNeeded}</p>`;
+                    if (result === 'success') missionDiv.classList.add('success');
+                    if (result === 'fail') missionDiv.classList.add('fail');
+                    missionTrack.appendChild(missionDiv);
+                });
+                
+                const leaderName = state.players.length > 0 ? state.players[state.leader - 1].name : '';
+                gameStatus.innerHTML = `第 ${state.round} 局 - 第 ${state.turn} 次派票 - 輪到 <span style="color: #ffc107">${leaderName}</span>`;
+                turnLeader.textContent = leaderName;
+                teamSelection.innerHTML = '';
+                const needed = missionSize[state.players.length][state.round - 1];
+                teamSelection.innerHTML += `<h4>請選擇 ${needed} 位成員</h4>`;
+                state.players.forEach(p => {
+                    teamSelection.innerHTML += `<label><input type="checkbox" name="team" value="${p.id}"> ${p.name}</label>`;
+                });
+                voteSelection.innerHTML = '<h4>請勾選投「贊成」的玩家：</h4>';
+                state.players.forEach(p => {
+                    voteSelection.innerHTML += `<label><input type="checkbox" name="approvers" value="${p.id}"> ${p.name}</label>`;
+                });
+                teamBox.classList.remove('hidden');
+                voteBox.classList.add('hidden');
+                missionBox.classList.add('hidden');
+                ladyOfTheLakeBox.classList.add('hidden');
+            }
+
+            // 監聽派票區的點擊事件
+            teamSelection.addEventListener('change', (event) => {
+                if (event.target.name === 'team') {
+                    const selectedCheckboxes = document.querySelectorAll('input[name="team"]:checked');
+                    const allCheckboxes = document.querySelectorAll('input[name="team"]');
+                    const needed = missionSize[state.players.length][state.round - 1];
+                    if (selectedCheckboxes.length >= needed) {
+                        allCheckboxes.forEach(cb => { if (!cb.checked) { cb.disabled = true; } });
+                    } else {
+                        allCheckboxes.forEach(cb => { cb.disabled = false; });
+                    }
+                }
+            });
+
+            // 確認隊伍按鈕事件
+            submitTeamBtn.addEventListener('click', () => {
+                const selected = document.querySelectorAll('input[name="team"]:checked');
+                const needed = missionSize[state.players.length][state.round - 1];
+                if (selected.length !== needed) { alert(`必須選擇 ${needed} 位玩家！`); return; }
+                
+                state.currentTeam = Array.from(selected).map(cb => parseInt(cb.value));
+                const teamNames = state.currentTeam.map(id => state.players[id - 1].name);
+                logAction(`領袖 ${state.players[state.leader - 1].name} 派出隊伍: ${teamNames.join(', ')}`);
+                
+                voteBox.classList.remove('hidden');
+            });
+            
+            // 確認投票結果事件
+            submitVoteBtn.addEventListener('click', () => {
+                const approverCheckboxes = document.querySelectorAll('input[name="approvers"]:checked');
+                const approverIds = Array.from(approverCheckboxes).map(cb => parseInt(cb.value));
+
+                const approverNamesFormatted = state.players.filter(p => approverIds.includes(p.id))
+                    .map(p => !state.currentTeam.includes(p.id) ? `<span style="color: #4fc3f7; font-weight: bold;">${p.name}</span>` : p.name);
+
+                const rejecterNamesFormatted = state.players.filter(p => !approverIds.includes(p.id))
+                    .map(p => state.currentTeam.includes(p.id) ? `<span style="color: #ffb74d; font-weight: bold;">${p.name}</span>` : p.name);
+
+                logAction(`投票結果：贊成 ${approverNamesFormatted.length} 票 (${approverNamesFormatted.join(', ') || '無'})，反對 ${rejecterNamesFormatted.length} 票 (${rejecterNamesFormatted.join(', ') || '無'})`);
+
+                if (approverNamesFormatted.length > rejecterNamesFormatted.length) {
+                    logAction(`投票通過！請出任務的玩家選擇任務卡...`);
+                    state.failedVotes = 0;
+                    teamBox.classList.add('hidden');
+                    voteBox.classList.add('hidden');
+                    missionBox.classList.remove('hidden');
+                    const teamMemberNames = state.currentTeam.map(id => state.players[id - 1].name).join(', ');
+                    missionTeamMembers.textContent = teamMemberNames;
+                    failCardsInput.value = 0;
+                    failCardsInput.max = state.currentTeam.length;
+                } else {
+                    state.failedVotes++;
+                    logAction(`投票失敗！ (${state.failedVotes}/5)`);
+                    if (state.failedVotes >= 5) { alert('連續 5 次投票失敗，邪惡方勝利！'); return; }
+                    state.turn++;
+                    state.leader = (state.leader % state.players.length) + 1;
+                    updateUI();
+                }
+            });
+
+            function startNextRound() {
+                state.round++;
+                state.turn = 1;
+                state.leader = (state.leader % state.players.length) + 1;
+                state.currentTeam = [];
+                updateUI();
+            }
+
+            function showLadyOfTheLakeUI() {
+                teamBox.classList.add('hidden');
+                voteBox.classList.add('hidden');
+                missionBox.classList.add('hidden');
+                ladyOfTheLakeBox.classList.remove('hidden');
+                
+                const holder = state.players.find(p => p.id === state.ladyOfTheLakeHolder);
+                ladyHolderSpan.textContent = holder.name;
+
+                ladyTargetSelect.innerHTML = '';
+                const checkedPlayerIds = state.ladyOfTheLakeHistory.map(h => h.targetId);
+
+                state.players.forEach(p => {
+                    if (p.id !== state.ladyOfTheLakeHolder && !checkedPlayerIds.includes(p.id)) {
+                        const option = document.createElement('option');
+                        option.value = p.id;
+                        option.textContent = p.name;
+                        ladyTargetSelect.appendChild(option);
+                    }
+                });
+            }
+
+            // 確認任務結果事件
+            submitMissionBtn.addEventListener('click', () => {
+                const failCount = parseInt(failCardsInput.value);
+                if (failCount < 0 || failCount > state.currentTeam.length) { alert('失敗卡數量不正確！'); return; }
+
+                const failsNeeded = (state.players.length >= 7 && state.round === 4) ? 2 : 1;
+                const missionResult = failCount >= failsNeeded ? 'fail' : 'success';
+                state.missions[state.round - 1] = missionResult;
+                
+                const resultColor = missionResult === 'success' ? '#28a745' : '#dc3545';
+                const resultText = `任務結果：<span style="color: ${resultColor}; font-weight: bold;">${missionResult.toUpperCase()} (${failCount} 張失敗卡)</span>`;
+                logAction(resultText, false); // 任務結果不顯示局數
+
+                const successes = state.missions.filter(m => m === 'success').length;
+                const fails = state.missions.filter(m => m === 'fail').length;
+
+                if (successes >= 3) { alert('任務成功 3 次，正義方勝利！'); return; }
+                if (fails >= 3) { alert('任務失敗 3 次，邪惡方勝利！'); return; }
+
+                if ([2, 3, 4].includes(state.round)) {
+                    showLadyOfTheLakeUI();
+                } else {
+                    startNextRound();
+                }
+            });
+
+            // 確認湖中女神查驗結果
+            submitLadyOfTheLakeBtn.addEventListener('click', () => {
+                const targetId = parseInt(ladyTargetSelect.value);
+                const result = document.querySelector('input[name="lady-result"]:checked').value;
+                if (!targetId) { alert('請選擇一位查驗對象！'); return; }
+
+                const holder = state.players.find(p => p.id === state.ladyOfTheLakeHolder);
+                const target = state.players.find(p => p.id === targetId);
+                const resultText = result === 'Good' ? '正義' : '邪惡';
+                const resultColor = result === 'Good' ? '#28a745' : '#dc3545';
+
+                logAction(`<span style="color:#4fc3f7;">${holder.name}</span> 使用湖中女神查驗了 <span style="color:#ffb74d;">${target.name}</span>，結果是 <strong style="color:${resultColor};">${resultText}</strong>`, false);
+                
+                state.ladyOfTheLakeHistory.push({ holderId: holder.id, targetId: target.id, result: result });
+                state.ladyOfTheLakeHolder = targetId;
+                logAction(`湖中女神現在傳給了 ${target.name}。`, false);
+                
+                startNextRound();
+            });
+
+        });
+    </script>
+</body>
+</html>
