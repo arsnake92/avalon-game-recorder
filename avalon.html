@@ -67,7 +67,7 @@
         .player-inputs-container {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            gap: 10px;
+            gap: 15px;
         }
         .mission-grid {
             display: grid;
@@ -131,6 +131,14 @@
             text-align: center;
             margin-bottom: 10px;
         }
+        #game-over-box {
+            text-align: center;
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #3a3a3a;
+            border-radius: 8px;
+            border: 2px solid #ffc107;
+        }
     </style>
 </head>
 <body>
@@ -143,7 +151,7 @@
         </div>
         <button id="setup-btn">設定玩家名稱</button>
         <div id="player-names-container" class="hidden">
-            <h2>輸入玩家名稱</h2>
+            <h2>輸入玩家名稱與選擇初始湖中女神</h2>
             <div id="player-inputs-container" class="player-inputs-container"></div>
             <button id="start-game-btn">開始遊戲</button>
         </div>
@@ -151,6 +159,9 @@
 
     <div class="container hidden" id="game-container">
         <h2 id="game-status"></h2>
+        <!-- 新增：湖中女神當前持有者顯示 -->
+        <h3 id="lady-status" style="color: #4fc3f7; text-align: center; margin-top: -10px; font-size: 1.1rem;"></h3>
+        
         <div class="mission-grid" id="mission-track"></div>
         
         <div class="container hidden" id="lady-of-the-lake-box" style="margin-top: 20px; background-color: #3a3a3a;">
@@ -180,6 +191,7 @@
                 <button id="submit-vote-btn">確認投票結果</button>
             </div>
         </div>
+        
         <div class="container hidden" id="mission-box" style="margin-top: 20px; background-color: #3a3a3a;">
             <h4>任務執行</h4>
             <p>出任務的玩家為：</p>
@@ -189,6 +201,12 @@
                 <input type="number" id="fail-cards" min="0" value="0">
             </div>
             <button id="submit-mission-btn">確認任務結果</button>
+        </div>
+
+        <!-- 新增：遊戲結束後的重設區塊 -->
+        <div id="game-over-box" class="hidden">
+            <h2 id="game-over-message" style="color: #ffc107; border: none; padding: 0;"></h2>
+            <button id="restart-btn" style="background-color: #dc3545; color: white; max-width: 300px; margin: 0 auto; display: block;">重新開始遊戲</button>
         </div>
     </div>
 
@@ -210,6 +228,7 @@
             const playerInputsContainer = document.getElementById('player-inputs-container');
             const startGameBtn = document.getElementById('start-game-btn');
             const gameStatus = document.getElementById('game-status');
+            const ladyStatus = document.getElementById('lady-status'); // 新增：主畫面湖中女神提示
             const missionTrack = document.getElementById('mission-track');
             const turnLeader = document.getElementById('turn-leader');
             const teamBox = document.getElementById('team-box');
@@ -223,12 +242,17 @@
             const failCardsInput = document.getElementById('fail-cards');
             const submitMissionBtn = document.getElementById('submit-mission-btn');
             const logContainer = document.getElementById('log-container');
+            
             // 湖中女神變數
             const ladyOfTheLakeBox = document.getElementById('lady-of-the-lake-box');
             const ladyHolderSpan = document.getElementById('lady-holder');
             const ladyTargetSelect = document.getElementById('lady-target-select');
             const submitLadyOfTheLakeBtn = document.getElementById('submit-lady-of-the-lake-btn');
 
+            // 遊戲結束區塊變數
+            const gameOverBox = document.getElementById('game-over-box');
+            const gameOverMessage = document.getElementById('game-over-message');
+            const restartBtn = document.getElementById('restart-btn');
 
             let state = {};
 
@@ -250,6 +274,32 @@
                 logContainer.scrollTop = logContainer.scrollHeight;
             }
 
+            // 新增：處理遊戲結束的 UI 鎖定與紀錄
+            function endGame(message) {
+                // 隱藏所有操作區塊
+                teamBox.classList.add('hidden');
+                voteBox.classList.add('hidden');
+                missionBox.classList.add('hidden');
+                ladyOfTheLakeBox.classList.add('hidden');
+                
+                // 顯示遊戲結束畫面與重設按鈕
+                gameOverMessage.textContent = message;
+                gameOverBox.classList.remove('hidden');
+                
+                // 寫入 log
+                logAction(`<span style="color: #ffc107; font-size: 1.2em; font-weight: bold;">遊戲結束：${message}</span>`, false);
+                
+                // 保留 alert 提醒玩家
+                setTimeout(() => alert(`遊戲結束：${message}`), 100);
+            }
+
+            // 新增：重設遊戲按鈕事件
+            restartBtn.addEventListener('click', () => {
+                if(confirm('確定要重新開始嗎？將會清除所有紀錄。')) {
+                    location.reload(); // 重新載入頁面以重置所有狀態
+                }
+            });
+
             // 設定與開始遊戲的邏輯
             setupBtn.addEventListener('click', () => {
                 const count = parseInt(playerCountInput.value);
@@ -257,7 +307,14 @@
                 playerInputsContainer.innerHTML = '';
                 for (let i = 1; i <= count; i++) {
                     const inputDiv = document.createElement('div');
-                    inputDiv.innerHTML = `<label for="player-${i}">玩家 ${i}:</label><input type="text" id="player-${i}" value="玩家${i}">`;
+                    inputDiv.innerHTML = `
+                        <label for="player-${i}">玩家 ${i}:</label>
+                        <input type="text" id="player-${i}" value="玩家${i}">
+                        <label style="display: block; margin-top: 8px; color: #4fc3f7; cursor: pointer; font-size: 0.9em;">
+                            <input type="radio" name="initial-lady" value="${i}" ${i === count ? 'checked' : ''}>
+                            設為初始湖中女神
+                        </label>
+                    `;
                     playerInputsContainer.appendChild(inputDiv);
                 }
                 playerNamesContainer.classList.remove('hidden');
@@ -271,13 +328,15 @@
                     if (!playerName) { alert(`請輸入玩家 ${i} 的名稱！`); return; }
                     players.push({ id: i, name: playerName });
                 }
+                
+                const initialLadyId = parseInt(document.querySelector('input[name="initial-lady"]:checked').value);
+
                 state = {
                     players: players, round: 1, turn: 1, leader: 1,
                     missions: [null, null, null, null, null],
                     failedVotes: 0, currentTeam: [],
-                    // 湖中女神狀態初始化
-                    ladyOfTheLakeHolder: players.length, // 最後一位玩家持有
-                    ladyOfTheLakeHistory: [], // 紀錄查驗歷史
+                    ladyOfTheLakeHolder: initialLadyId, 
+                    ladyOfTheLakeHistory: [],
                 };
                 setupContainer.classList.add('hidden');
                 gameContainer.classList.remove('hidden');
@@ -303,6 +362,13 @@
                 
                 const leaderName = state.players.length > 0 ? state.players[state.leader - 1].name : '';
                 gameStatus.innerHTML = `第 ${state.round} 局 - 第 ${state.turn} 次派票 - 輪到 <span style="color: #ffc107">${leaderName}</span>`;
+                
+                // 更新主畫面的湖中女神提示
+                const currentLady = state.players.find(p => p.id === state.ladyOfTheLakeHolder);
+                if (currentLady) {
+                    ladyStatus.innerHTML = `湖中女神持有者：<span style="font-weight: bold;">${currentLady.name}</span>`;
+                }
+
                 turnLeader.textContent = leaderName;
                 teamSelection.innerHTML = '';
                 const needed = missionSize[state.players.length][state.round - 1];
@@ -314,6 +380,7 @@
                 state.players.forEach(p => {
                     voteSelection.innerHTML += `<label><input type="checkbox" name="approvers" value="${p.id}"> ${p.name}</label>`;
                 });
+                
                 teamBox.classList.remove('hidden');
                 voteBox.classList.add('hidden');
                 missionBox.classList.add('hidden');
@@ -373,7 +440,12 @@
                 } else {
                     state.failedVotes++;
                     logAction(`投票失敗！ (${state.failedVotes}/5)`);
-                    if (state.failedVotes >= 5) { alert('連續 5 次投票失敗，邪惡方勝利！'); return; }
+                    
+                    if (state.failedVotes >= 5) { 
+                        endGame('連續 5 次投票失敗，邪惡方勝利！');
+                        return; 
+                    }
+                    
                     state.turn++;
                     state.leader = (state.leader % state.players.length) + 1;
                     updateUI();
@@ -421,13 +493,19 @@
                 
                 const resultColor = missionResult === 'success' ? '#28a745' : '#dc3545';
                 const resultText = `任務結果：<span style="color: ${resultColor}; font-weight: bold;">${missionResult.toUpperCase()} (${failCount} 張失敗卡)</span>`;
-                logAction(resultText, false); // 任務結果不顯示局數
+                logAction(resultText, false);
 
                 const successes = state.missions.filter(m => m === 'success').length;
                 const fails = state.missions.filter(m => m === 'fail').length;
 
-                if (successes >= 3) { alert('任務成功 3 次，正義方勝利！'); return; }
-                if (fails >= 3) { alert('任務失敗 3 次，邪惡方勝利！'); return; }
+                if (successes >= 3) { 
+                    endGame('任務成功 3 次，正義方勝利！'); 
+                    return; 
+                }
+                if (fails >= 3) { 
+                    endGame('任務失敗 3 次，邪惡方勝利！'); 
+                    return; 
+                }
 
                 if ([2, 3, 4].includes(state.round)) {
                     showLadyOfTheLakeUI();
